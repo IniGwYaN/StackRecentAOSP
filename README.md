@@ -86,4 +86,5 @@ Issues and pull requests are welcome. For changes to launcher hooks, test on the
 
 ---
 
+Special thanks to @username_C70246247 to example for this project
 Maintained by [YAN](https://github.com/IniGwYaN).
