@@ -86,6 +86,6 @@ Issues and pull requests are welcome. For changes to launcher hooks, test on the
 
 ---
 
-Special thanks to [BuildSession](https://github.com/C70246247) for example for this project
+Special thanks to [BuildSession](https://github.com/C70246247) for example this project
 
 Maintained by [YAN](https://github.com/IniGwYaN).
