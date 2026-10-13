@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StackRecentAOSP</string>
+    <string name="app_description">A stacked recent-apps experience for AOSP Launcher3 and Pixel Launcher.</string>
+    <string name="module_subtitle">A more natural recents experience</string>
+    <string name="debug_preview">DEBUG BUILD · TEST PREVIEW</string>
+    <string name="module_setup_title">Module setup</string>
+    <string name="module_setup_body">Enable StackRecentAOSP in LSPosed and include Launcher3 or Pixel Launcher in the module scope. Then use Launcher maintenance below to open launcher settings and tap Force stop to reload the hooks.</string>
+    <string name="launcher_tools_title">Launcher maintenance</string>
+    <string name="force_stop_launcher_title">Force stop launcher</string>
+    <string name="force_stop_launcher_body">Open the current default Home app\'s settings, then tap Force stop to reload StackRecentAOSP hooks. Android requires this final confirmation in system settings.</string>
+    <string name="force_stop_launcher_button">Open launcher settings</string>
+    <string name="launcher_not_detected">Could not detect the default launcher. Set a Home app as default first.</string>
+    <string name="launcher_settings_failed">Could not open launcher settings.</string>
+    <string name="launcher_icon_title">Launcher icon</string>
+    <string name="launcher_icon_body">Show or hide the app icon on your home screen. You can still open these settings from the LSPosed module page when the icon is hidden.</string>
+    <string name="show_launcher_icon">Show launcher icon</string>
+    <string name="github_button">Open GitHub repository</string>
+    <string name="debug_note">Debug build for testing. Report any visual or gesture issues before using a release build.</string>
+</resources>
