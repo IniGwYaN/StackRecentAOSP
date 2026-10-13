@@ -1,0 +1,25 @@
+# IntelliJ / Android Studio
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+
+# Build outputs
+/build
+app/build
+**/build/
+
+# Android build cache
+/captures
+.externalNativeBuild
+.cxx
+
+# Signing keys - DO NOT UPLOAD
+*.jks
+*.keystore
+*base64*.txt
+SIGNING_CREDENTIALS.txt
+
+# Other local files
+Thumbs.db
