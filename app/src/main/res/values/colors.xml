@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fallback tones for devices where wallpaper-based dynamic colors are unavailable. -->
+    <color name="fallback_primary">#6750A4</color>
+    <color name="fallback_surface">#FFFBFE</color>
+    <color name="fallback_surface_dark">#141218</color>
+</resources>
