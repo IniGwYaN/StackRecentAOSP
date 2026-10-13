@@ -124,7 +124,7 @@ On Windows use `gradlew.bat`. The APK is written to `app/build/outputs/apk/relea
 ## Credits
 
 - Developed and maintained by **[YAN](https://github.com/IniGwYaN)**.
-- thanks to for example this project: [C70246247](https://github.com/C70246247).
+- thanks to : [C70246247](https://github.com/C70246247).for example this project
 - [Android Open Source Project](https://source.android.com/), [LSPosed](https://github.com/LSPosed/LSPosed), [AndroidX](https://github.com/androidx/androidx) and [Material Components](https://github.com/material-components/material-components-android).
 
 ---
