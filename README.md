@@ -6,7 +6,7 @@
 
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](#compatibility)
 [![LSPosed](https://img.shields.io/badge/LSPosed-module-5C6BC0)](https://github.com/LSPosed/LSPosed)
-[![Version](https://img.shields.io/badge/version-1.0.0-informational)](../../releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-informational)](../../releases)
 
 <img src="Preview/preview.gif" alt="StackRecentAOSP preview" width="280">
 
@@ -35,7 +35,7 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 | | |
 |---|---|
 | **Package ID** | `com.yan.stackrecentaosp` |
-| **Version** | 1.0.0 |
+| **Version** | 1.0.1 |
 | **Minimum Android** | Android 10 (API 29) |
 | **Framework** | LSPosed / Xposed API |
 | **Developer** | **YAN** |
@@ -53,7 +53,8 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 
 - **Animation bug fix** – Recent Apps animations stay smooth and the running app lines up with its card.
 - **Recent app slide fix** – sliding the navigation bar to switch between apps no longer shows another app on top of the current one.
-- **Landscape mode fix** – cards, offsets and dismiss gestures behave correctly when the layout is rotated.
+- **Landscape mode fix** – cards, offsets and dismiss gestures behave correctly when the layout is rotated on supported Launcher APIs.
+- **Android 10 legacy hook path** – when `PagedOrientationHandler` and axis-specific `TaskView` translation methods are absent, use `RecentsView`/`View` geometry and direct translation fallback. This was added after inspecting the supplied Android 10 Pixel Launcher APK; on-device verification is still required.
 
 ## Compatibility
 
@@ -63,7 +64,7 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 | Pixel Launcher | `com.google.android.apps.nexuslauncher` |
 
 > [!NOTE]
-> The app package supports Android 10 (API 29) and newer. However, Recent Apps hooks depend on launcher internals that vary by Android version, ROM and launcher fork; Android 10 compatibility of the module behavior is not guaranteed without device testing.
+> The app package supports Android 10 (API 29) and newer. A legacy fallback is included for the supplied Android 10 Pixel Launcher build, where `PagedOrientationHandler` is absent. Because Recent Apps hooks depend on private launcher internals and device/ROM variants, this fallback still needs on-device verification and is not a universal Android 10 guarantee.
 
 ## Installation
 

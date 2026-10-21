@@ -81,9 +81,14 @@ public class RecentsHook {
             taskViewClass = XposedHelpers.findClassIfExists("com.android.quickstep.views.TaskView", classLoader);
             orientationHandlerClass = XposedHelpers.findClassIfExists("com.android.launcher3.touch.PagedOrientationHandler", classLoader);
 
-            if (recentsViewClass == null || taskViewClass == null || orientationHandlerClass == null) {
-                XposedBridge.log("StackRecentAOSP: Critical classes not found, aborting.");
+            if (recentsViewClass == null || taskViewClass == null) {
+                XposedBridge.log("StackRecentAOSP: Required RecentsView/TaskView classes not found; aborting.");
                 return;
+            }
+            // Android 10 Pixel Launcher predates PagedOrientationHandler. Treat it as an
+            // optional API and use legacy View coordinates when it is not present.
+            if (orientationHandlerClass == null) {
+                XposedBridge.log("StackRecentAOSP: PagedOrientationHandler not found; enabling legacy coordinate fallback.");
             }
 
             // Keep Recent Apps task-card corners consistent when the ROM changes its icon mask.
@@ -97,11 +102,15 @@ public class RecentsHook {
 
             // Probing Methods
             getPagedOrientationHandlerMethod = findMethod(recentsViewClass, "getPagedOrientationHandler");
-            getPrimaryScrollMethod = findMethod(orientationHandlerClass, "getPrimaryScroll", View.class);
-            getMeasuredSizeMethod = findMethod(orientationHandlerClass, "getMeasuredSize", View.class);
-            getChildStartMethod = findMethod(orientationHandlerClass, "getChildStart", View.class);
+            getPrimaryScrollMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getPrimaryScroll", View.class) : null;
+            getMeasuredSizeMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getMeasuredSize", View.class) : null;
+            getChildStartMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getChildStart", View.class) : null;
             // Used to tell whether the carousel scrolls horizontally (portrait) or vertically (rotated/landscape).
-            isLayoutNaturallyHorizontalMethod = findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal");
+            isLayoutNaturallyHorizontalMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal") : null;
             
             // Hook getOffsetAdjustment to report our stack offset to Launcher's layout/snapping logic.
             // This ensures that snap-to-page and hit-testing work correctly with our shifts.
@@ -293,8 +302,8 @@ public class RecentsHook {
                              child.setTranslationZ(targetZ);
                          }
                          // Re-apply our custom X/Y translation after the system reset
-                         XposedHelpers.callMethod(child, "applyTranslationX");
-                         XposedHelpers.callMethod(child, "applyTranslationY");
+                         applyStackTranslation(child, true);
+                         applyStackTranslation(child, false);
                      }
                  });
              }
@@ -598,6 +607,7 @@ public class RecentsHook {
     }
 
     private Method findMethod(Class<?> clazz, String name, Class<?>... parameterTypes) {
+        if (clazz == null) return null;
         Method m = XposedHelpers.findMethodExactIfExists(clazz, name, (Object[]) parameterTypes);
         if (m != null) {
             m.setAccessible(true);
@@ -653,6 +663,18 @@ public class RecentsHook {
             }
         } catch (Throwable ignored) {
         }
+        // Legacy Launchers do not expose PagedOrientationHandler. Infer the primary axis
+        // from the RecentsView bounds, matching the portrait/landscape behavior of newer APIs.
+        try {
+            Object parent = child.getParent();
+            if (parent instanceof View) {
+                View parentView = (View) parent;
+                if (parentView.getWidth() > 0 && parentView.getHeight() > 0) {
+                    return parentView.getWidth() < parentView.getHeight();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         return true;
     }
 
@@ -673,16 +695,32 @@ public class RecentsHook {
     private long lastDismissHookLogUptime;
     private long lastDiagLogUptime;
     private long lastQuickSwitchLogUptime;
+    private long lastUpdateCurveErrorLogUptime;
 
     private void handleUpdateCurveProperties(XC_MethodHook.MethodHookParam param) {
         ViewGroup recentsView = (ViewGroup) param.thisObject;
         if (recentsView == null) return;
 
         try {
-            if (getPagedOrientationHandlerMethod == null) return;
-            Object handler = getPagedOrientationHandlerMethod.invoke(recentsView);
-            if (handler == null) return;
-            final boolean horizontal = isPrimaryAxisHorizontalForHandler(handler);
+            Object handler = null;
+            boolean hasOrientationApi = getPagedOrientationHandlerMethod != null
+                    && getPrimaryScrollMethod != null
+                    && getMeasuredSizeMethod != null
+                    && getChildStartMethod != null;
+            if (hasOrientationApi) {
+                try {
+                    handler = getPagedOrientationHandlerMethod.invoke(recentsView);
+                } catch (Throwable ignored) {
+                    handler = null;
+                }
+                hasOrientationApi = handler != null;
+            }
+            // The Android 10 Pixel Launcher supplied with this project has no
+            // PagedOrientationHandler; in that case use the ordinary View geometry.
+            final boolean horizontal = hasOrientationApi
+                    ? isPrimaryAxisHorizontalForHandler(handler)
+                    : (recentsView.getWidth() <= 0 || recentsView.getHeight() <= 0
+                        || recentsView.getWidth() < recentsView.getHeight());
 
             // Reload prefs to get dynamic changes
             prefs.reload();
@@ -694,9 +732,13 @@ public class RecentsHook {
                 lastTightnessFactor = tightnessFactor;
             }
 
-            int scroll = (int) getPrimaryScrollMethod.invoke(handler, recentsView);
-            int measuredSize = (int) getMeasuredSizeMethod.invoke(handler, recentsView);
-            
+            int scroll = hasOrientationApi
+                    ? (int) getPrimaryScrollMethod.invoke(handler, recentsView)
+                    : (horizontal ? recentsView.getScrollX() : recentsView.getScrollY());
+            int measuredSize = hasOrientationApi
+                    ? (int) getMeasuredSizeMethod.invoke(handler, recentsView)
+                    : (horizontal ? recentsView.getWidth() : recentsView.getHeight());
+
             if (measuredSize <= 0) return; // Avoid invalid calculations on first frame
 
             float center = scroll + measuredSize / 2f;
@@ -713,8 +755,12 @@ public class RecentsHook {
                     int runningIndex = (int) XposedHelpers.callMethod(recentsView, "indexOfChild", runningTask);
                     diagRunningIndex = runningIndex;
                     if (scroll == 0 && runningIndex > 0) {
-                        int childStart = (int) getChildStartMethod.invoke(handler, runningTask);
-                        int childSize = (int) getMeasuredSizeMethod.invoke(handler, runningTask);
+                        int childStart = hasOrientationApi
+                                ? (int) getChildStartMethod.invoke(handler, runningTask)
+                                : (horizontal ? runningTask.getLeft() : runningTask.getTop());
+                        int childSize = hasOrientationApi
+                                ? (int) getMeasuredSizeMethod.invoke(handler, runningTask)
+                                : (horizontal ? runningTask.getWidth() : runningTask.getHeight());
                         center = childStart + childSize / 2f;
                     }
                 }
@@ -771,8 +817,12 @@ public class RecentsHook {
                 View child = recentsView.getChildAt(i);
                 if (child == null || !taskViewClass.isInstance(child)) continue;
 
-                int childStart = (int) getChildStartMethod.invoke(handler, child);
-                int childSize = (int) getMeasuredSizeMethod.invoke(handler, child);
+                int childStart = hasOrientationApi
+                        ? (int) getChildStartMethod.invoke(handler, child)
+                        : (horizontal ? child.getLeft() : child.getTop());
+                int childSize = hasOrientationApi
+                        ? (int) getMeasuredSizeMethod.invoke(handler, child)
+                        : (horizontal ? child.getWidth() : child.getHeight());
                 float childCenter = childStart + childSize / 2f;
                 float distance = childCenter - center;
                 float absDistance = Math.abs(distance);
@@ -817,7 +867,7 @@ public class RecentsHook {
                     Float prevOffset = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", 0f);
                     if (prevOffset != null && prevOffset != 0f) {
-                        XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                        applyStackTranslation(child, horizontal);
                     }
                     // Keep the same draw order the stacked cards use. Without a Z value this card sat at 0,
                     // so every stacked card (Z ~100) was drawn on top of the running app's card.
@@ -922,7 +972,7 @@ public class RecentsHook {
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     
                     // Manually trigger property update on the carousel axis
-                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                    applyStackTranslation(child, horizontal);
                     
                     // Visual effects (Scale/Alpha) also use virtual distance for perfect synchronization
                     float visualProgress = Math.min(1.0f, absVirtualDistance / (measuredSize * 2.5f));
@@ -998,7 +1048,7 @@ public class RecentsHook {
                     float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
-                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                    applyStackTranslation(child, horizontal);
 
                     if (quickSwitch) {
                         // Stock quick-switch look: no depth scaling or fading on the incoming card.
@@ -1029,7 +1079,12 @@ public class RecentsHook {
                 }
             }
         } catch (Throwable t) {
-            // log once
+            long now = SystemClock.uptimeMillis();
+            if (now - lastUpdateCurveErrorLogUptime > DEBUG_LOG_THROTTLE_MS) {
+                lastUpdateCurveErrorLogUptime = now;
+                XposedBridge.log("StackRecentAOSP: updateCurveProperties hook failed: "
+                        + Log.getStackTraceString(t));
+            }
         }
     }
 
@@ -1177,6 +1232,64 @@ public class RecentsHook {
                 param.setResult(child);
                 return;
             }
+        }
+    }
+
+    /**
+     * Refresh a task card's translation using the best API available in the active Launcher.
+     * Newer Launcher builds expose applyTranslationX/Y and are handled by the existing hooks.
+     * Android 10 Pixel Launcher does not, so apply the calculated stack offset directly without
+     * accumulating it on every updateCurveProperties call.
+     */
+    private void applyStackTranslation(View child, boolean horizontal) {
+        if (child == null) return;
+        String methodName = horizontal ? "applyTranslationX" : "applyTranslationY";
+        Method axisMethod = findMethod(taskViewClass, methodName);
+        if (axisMethod != null) {
+            try {
+                XposedHelpers.callMethod(child, methodName);
+                return;
+            } catch (Throwable t) {
+                XposedBridge.log("StackRecentAOSP: " + methodName + " failed; using direct View translation: " + t.getMessage());
+            }
+        }
+
+        boolean primaryHorizontal = isPrimaryAxisHorizontal(child);
+        float requestedOffset = 0f;
+        try {
+            if (horizontal && primaryHorizontal) {
+                Object offset = XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
+                if (offset instanceof Number) requestedOffset = ((Number) offset).floatValue();
+            } else if (!horizontal) {
+                Object secondary = XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset_y");
+                if (secondary instanceof Number) requestedOffset = ((Number) secondary).floatValue();
+                if (!primaryHorizontal) {
+                    Object primary = XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
+                    if (primary instanceof Number) requestedOffset += ((Number) primary).floatValue();
+                }
+            }
+
+            String previousOffsetKey = horizontal
+                    ? "apple_legacy_applied_offset_x" : "apple_legacy_applied_offset_y";
+            String previousFinalKey = horizontal
+                    ? "apple_legacy_final_translation_x" : "apple_legacy_final_translation_y";
+            Float previousOffset = (Float) XposedHelpers.getAdditionalInstanceField(child, previousOffsetKey);
+            Float previousFinal = (Float) XposedHelpers.getAdditionalInstanceField(child, previousFinalKey);
+            float current = horizontal ? child.getTranslationX() : child.getTranslationY();
+            float base = current;
+            // If the value still equals our last output, remove the old offset before applying
+            // the new one. If Launcher changed it since last frame, treat it as a fresh base value.
+            if (previousOffset != null && previousFinal != null
+                    && Math.abs(current - previousFinal) < 0.5f) {
+                base = current - previousOffset;
+            }
+            float finalTranslation = base + requestedOffset;
+            if (horizontal) child.setTranslationX(finalTranslation);
+            else child.setTranslationY(finalTranslation);
+            XposedHelpers.setAdditionalInstanceField(child, previousOffsetKey, requestedOffset);
+            XposedHelpers.setAdditionalInstanceField(child, previousFinalKey, finalTranslation);
+        } catch (Throwable t) {
+            XposedBridge.log("StackRecentAOSP: Direct task translation failed: " + t.getMessage());
         }
     }
 
