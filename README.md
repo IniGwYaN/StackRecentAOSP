@@ -4,7 +4,7 @@
 
 **iOS-style stacked cards for the Recent Apps screen on AOSP Launcher3 and Pixel Launcher.**
 
-[![Android](https://img.shields.io/badge/Android-12%2B-3DDC84?logo=android&logoColor=white)](#compatibility)
+[![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](#compatibility)
 [![LSPosed](https://img.shields.io/badge/LSPosed-module-5C6BC0)](https://github.com/LSPosed/LSPosed)
 [![Version](https://img.shields.io/badge/version-1.0.0-informational)](../../releases)
 
@@ -36,7 +36,7 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 |---|---|
 | **Package ID** | `com.yan.stackrecentaosp` |
 | **Version** | 1.0.0 |
-| **Minimum Android** | Android 12 (API 31) |
+| **Minimum Android** | Android 10 (API 29) |
 | **Framework** | LSPosed / Xposed API |
 | **Developer** | **YAN** |
 
@@ -63,7 +63,7 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 | Pixel Launcher | `com.google.android.apps.nexuslauncher` |
 
 > [!NOTE]
-> Launcher internals differ between ROMs, Android versions and launcher forks. A matching package name does not guarantee that every hook behaves identically, so please test on your own device and ROM.
+> The app package supports Android 10 (API 29) and newer. However, Recent Apps hooks depend on launcher internals that vary by Android version, ROM and launcher fork; Android 10 compatibility of the module behavior is not guaranteed without device testing.
 
 ## Installation
 
@@ -124,7 +124,7 @@ On Windows use `gradlew.bat`. The APK is written to `app/build/outputs/apk/relea
 ## Credits
 
 - Developed and maintained by **[YAN](https://github.com/IniGwYaN)**.
-- Original project inspiration and code references : [C70246247](https://github.com/C70246247).
+- Original project inspiration and code references: [C70246247](https://github.com/C70246247).
 - [Android Open Source Project](https://source.android.com/), [LSPosed](https://github.com/LSPosed/LSPosed), [AndroidX](https://github.com/androidx/androidx) and [Material Components](https://github.com/material-components/material-components-android).
 
 ---
