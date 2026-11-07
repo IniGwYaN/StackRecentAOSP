@@ -1216,7 +1216,7 @@ public class RecentsHook {
         // reads our apple_stack_offset via the getOffsetAdjustment hook). On Android 10
         // the TaskView has no such methods, so fall back to applying the offset directly.
         try {
-            applyStackOffset(child, horizontal);
+            XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
             return;
         } catch (Throwable ignored) {
             // Method absent (e.g. Android 10 NexusLauncher) -> apply directly.
