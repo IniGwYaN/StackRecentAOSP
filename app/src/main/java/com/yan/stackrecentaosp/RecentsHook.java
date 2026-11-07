@@ -81,8 +81,8 @@ public class RecentsHook {
             taskViewClass = XposedHelpers.findClassIfExists("com.android.quickstep.views.TaskView", classLoader);
             orientationHandlerClass = XposedHelpers.findClassIfExists("com.android.launcher3.touch.PagedOrientationHandler", classLoader);
 
-            if (recentsViewClass == null || taskViewClass == null || orientationHandlerClass == null) {
-                XposedBridge.log("StackRecentAOSP: Critical classes not found, aborting.");
+            if (recentsViewClass == null || taskViewClass == null) {
+                XposedBridge.log("StackRecentAOSP: Required RecentsView/TaskView classes not found; aborting.");
                 return;
             }
 
@@ -97,11 +97,15 @@ public class RecentsHook {
 
             // Probing Methods
             getPagedOrientationHandlerMethod = findMethod(recentsViewClass, "getPagedOrientationHandler");
-            getPrimaryScrollMethod = findMethod(orientationHandlerClass, "getPrimaryScroll", View.class);
-            getMeasuredSizeMethod = findMethod(orientationHandlerClass, "getMeasuredSize", View.class);
-            getChildStartMethod = findMethod(orientationHandlerClass, "getChildStart", View.class);
+            getPrimaryScrollMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getPrimaryScroll", View.class) : null;
+            getMeasuredSizeMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getMeasuredSize", View.class) : null;
+            getChildStartMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "getChildStart", View.class) : null;
             // Used to tell whether the carousel scrolls horizontally (portrait) or vertically (rotated/landscape).
-            isLayoutNaturallyHorizontalMethod = findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal");
+            isLayoutNaturallyHorizontalMethod = orientationHandlerClass != null
+                    ? findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal") : null;
             
             // Hook getOffsetAdjustment to report our stack offset to Launcher's layout/snapping logic.
             // This ensures that snap-to-page and hit-testing work correctly with our shifts.
@@ -679,10 +683,25 @@ public class RecentsHook {
         if (recentsView == null) return;
 
         try {
-            if (getPagedOrientationHandlerMethod == null) return;
-            Object handler = getPagedOrientationHandlerMethod.invoke(recentsView);
-            if (handler == null) return;
-            final boolean horizontal = isPrimaryAxisHorizontalForHandler(handler);
+            Object handler = null;
+            boolean hasOrientationApi = getPagedOrientationHandlerMethod != null
+                    && getPrimaryScrollMethod != null
+                    && getMeasuredSizeMethod != null
+                    && getChildStartMethod != null;
+            if (hasOrientationApi) {
+                try {
+                    handler = getPagedOrientationHandlerMethod.invoke(recentsView);
+                } catch (Throwable ignored) {
+                    handler = null;
+                }
+                hasOrientationApi = handler != null;
+            }
+            // The Android 10 Pixel Launcher supplied with this project has no
+            // PagedOrientationHandler; in that case use the ordinary View geometry.
+            final boolean horizontal = hasOrientationApi
+                    ? isPrimaryAxisHorizontalForHandler(handler)
+                    : (recentsView.getWidth() <= 0 || recentsView.getHeight() <= 0
+                        || recentsView.getWidth() < recentsView.getHeight());
 
             // Reload prefs to get dynamic changes
             prefs.reload();
@@ -694,8 +713,12 @@ public class RecentsHook {
                 lastTightnessFactor = tightnessFactor;
             }
 
-            int scroll = (int) getPrimaryScrollMethod.invoke(handler, recentsView);
-            int measuredSize = (int) getMeasuredSizeMethod.invoke(handler, recentsView);
+            int scroll = hasOrientationApi
+                    ? (int) getPrimaryScrollMethod.invoke(handler, recentsView)
+                    : (horizontal ? recentsView.getScrollX() : recentsView.getScrollY());
+            int measuredSize = hasOrientationApi
+                    ? (int) getMeasuredSizeMethod.invoke(handler, recentsView)
+                    : (horizontal ? recentsView.getWidth() : recentsView.getHeight());
             
             if (measuredSize <= 0) return; // Avoid invalid calculations on first frame
 
@@ -713,8 +736,12 @@ public class RecentsHook {
                     int runningIndex = (int) XposedHelpers.callMethod(recentsView, "indexOfChild", runningTask);
                     diagRunningIndex = runningIndex;
                     if (scroll == 0 && runningIndex > 0) {
-                        int childStart = (int) getChildStartMethod.invoke(handler, runningTask);
-                        int childSize = (int) getMeasuredSizeMethod.invoke(handler, runningTask);
+                        int childStart = hasOrientationApi
+                                ? (int) getChildStartMethod.invoke(handler, runningTask)
+                                : (horizontal ? runningTask.getLeft() : runningTask.getTop());
+                        int childSize = hasOrientationApi
+                                ? (int) getMeasuredSizeMethod.invoke(handler, runningTask)
+                                : (horizontal ? runningTask.getWidth() : runningTask.getHeight());
                         center = childStart + childSize / 2f;
                     }
                 }
@@ -771,8 +798,12 @@ public class RecentsHook {
                 View child = recentsView.getChildAt(i);
                 if (child == null || !taskViewClass.isInstance(child)) continue;
 
-                int childStart = (int) getChildStartMethod.invoke(handler, child);
-                int childSize = (int) getMeasuredSizeMethod.invoke(handler, child);
+                int childStart = hasOrientationApi
+                        ? (int) getChildStartMethod.invoke(handler, child)
+                        : (horizontal ? child.getLeft() : child.getTop());
+                int childSize = hasOrientationApi
+                        ? (int) getMeasuredSizeMethod.invoke(handler, child)
+                        : (horizontal ? child.getWidth() : child.getHeight());
                 float childCenter = childStart + childSize / 2f;
                 float distance = childCenter - center;
                 float absDistance = Math.abs(distance);
