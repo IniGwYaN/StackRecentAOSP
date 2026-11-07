@@ -848,7 +848,7 @@ public class RecentsHook {
                     Float prevOffset = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", 0f);
                     if (prevOffset != null && prevOffset != 0f) {
-                        XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                        applyStackOffset(child, horizontal);
                     }
                     // Keep the same draw order the stacked cards use. Without a Z value this card sat at 0,
                     // so every stacked card (Z ~100) was drawn on top of the running app's card.
@@ -953,7 +953,7 @@ public class RecentsHook {
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     
                     // Manually trigger property update on the carousel axis
-                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                    applyStackOffset(child, horizontal);
                     
                     // Visual effects (Scale/Alpha) also use virtual distance for perfect synchronization
                     float visualProgress = Math.min(1.0f, absVirtualDistance / (measuredSize * 2.5f));
@@ -1029,7 +1029,7 @@ public class RecentsHook {
                     float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
-                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
+                    applyStackOffset(child, horizontal);
 
                     if (quickSwitch) {
                         // Stock quick-switch look: no depth scaling or fading on the incoming card.
@@ -1208,6 +1208,25 @@ public class RecentsHook {
                 param.setResult(child);
                 return;
             }
+        }
+    }
+
+    private void applyStackOffset(View child, boolean horizontal) {
+        // Try Launcher's own applyTranslationX/Y first (modern launchers: the method
+        // reads our apple_stack_offset via the getOffsetAdjustment hook). On Android 10
+        // the TaskView has no such methods, so fall back to applying the offset directly.
+        try {
+            applyStackOffset(child, horizontal);
+            return;
+        } catch (Throwable ignored) {
+            // Method absent (e.g. Android 10 NexusLauncher) -> apply directly.
+        }
+        Float off = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
+        float o = off == null ? 0f : off;
+        if (horizontal) {
+            child.setTranslationX(o);
+        } else {
+            child.setTranslationY(o);
         }
     }
 
