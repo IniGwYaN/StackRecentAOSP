@@ -81,8 +81,8 @@ public class RecentsHook {
             taskViewClass = XposedHelpers.findClassIfExists("com.android.quickstep.views.TaskView", classLoader);
             orientationHandlerClass = XposedHelpers.findClassIfExists("com.android.launcher3.touch.PagedOrientationHandler", classLoader);
 
-            if (recentsViewClass == null || taskViewClass == null) {
-                XposedBridge.log("StackRecentAOSP: Required RecentsView/TaskView classes not found; aborting.");
+            if (recentsViewClass == null || taskViewClass == null || orientationHandlerClass == null) {
+                XposedBridge.log("StackRecentAOSP: Critical classes not found, aborting.");
                 return;
             }
 
@@ -97,15 +97,11 @@ public class RecentsHook {
 
             // Probing Methods
             getPagedOrientationHandlerMethod = findMethod(recentsViewClass, "getPagedOrientationHandler");
-            getPrimaryScrollMethod = orientationHandlerClass != null
-                    ? findMethod(orientationHandlerClass, "getPrimaryScroll", View.class) : null;
-            getMeasuredSizeMethod = orientationHandlerClass != null
-                    ? findMethod(orientationHandlerClass, "getMeasuredSize", View.class) : null;
-            getChildStartMethod = orientationHandlerClass != null
-                    ? findMethod(orientationHandlerClass, "getChildStart", View.class) : null;
+            getPrimaryScrollMethod = findMethod(orientationHandlerClass, "getPrimaryScroll", View.class);
+            getMeasuredSizeMethod = findMethod(orientationHandlerClass, "getMeasuredSize", View.class);
+            getChildStartMethod = findMethod(orientationHandlerClass, "getChildStart", View.class);
             // Used to tell whether the carousel scrolls horizontally (portrait) or vertically (rotated/landscape).
-            isLayoutNaturallyHorizontalMethod = orientationHandlerClass != null
-                    ? findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal") : null;
+            isLayoutNaturallyHorizontalMethod = findMethod(orientationHandlerClass, "isLayoutNaturallyHorizontal");
             
             // Hook getOffsetAdjustment to report our stack offset to Launcher's layout/snapping logic.
             // This ensures that snap-to-page and hit-testing work correctly with our shifts.
@@ -677,32 +673,16 @@ public class RecentsHook {
     private long lastDismissHookLogUptime;
     private long lastDiagLogUptime;
     private long lastQuickSwitchLogUptime;
-    private long lastCardDiagLogUptime;
 
     private void handleUpdateCurveProperties(XC_MethodHook.MethodHookParam param) {
         ViewGroup recentsView = (ViewGroup) param.thisObject;
         if (recentsView == null) return;
 
         try {
-            Object handler = null;
-            boolean hasOrientationApi = getPagedOrientationHandlerMethod != null
-                    && getPrimaryScrollMethod != null
-                    && getMeasuredSizeMethod != null
-                    && getChildStartMethod != null;
-            if (hasOrientationApi) {
-                try {
-                    handler = getPagedOrientationHandlerMethod.invoke(recentsView);
-                } catch (Throwable ignored) {
-                    handler = null;
-                }
-                hasOrientationApi = handler != null;
-            }
-            // The Android 10 Pixel Launcher supplied with this project has no
-            // PagedOrientationHandler; in that case use the ordinary View geometry.
-            final boolean horizontal = hasOrientationApi
-                    ? isPrimaryAxisHorizontalForHandler(handler)
-                    : (recentsView.getWidth() <= 0 || recentsView.getHeight() <= 0
-                        || recentsView.getWidth() < recentsView.getHeight());
+            if (getPagedOrientationHandlerMethod == null) return;
+            Object handler = getPagedOrientationHandlerMethod.invoke(recentsView);
+            if (handler == null) return;
+            final boolean horizontal = isPrimaryAxisHorizontalForHandler(handler);
 
             // Reload prefs to get dynamic changes
             prefs.reload();
@@ -714,12 +694,8 @@ public class RecentsHook {
                 lastTightnessFactor = tightnessFactor;
             }
 
-            int scroll = hasOrientationApi
-                    ? (int) getPrimaryScrollMethod.invoke(handler, recentsView)
-                    : (horizontal ? recentsView.getScrollX() : recentsView.getScrollY());
-            int measuredSize = hasOrientationApi
-                    ? (int) getMeasuredSizeMethod.invoke(handler, recentsView)
-                    : (horizontal ? recentsView.getWidth() : recentsView.getHeight());
+            int scroll = (int) getPrimaryScrollMethod.invoke(handler, recentsView);
+            int measuredSize = (int) getMeasuredSizeMethod.invoke(handler, recentsView);
             
             if (measuredSize <= 0) return; // Avoid invalid calculations on first frame
 
@@ -737,12 +713,8 @@ public class RecentsHook {
                     int runningIndex = (int) XposedHelpers.callMethod(recentsView, "indexOfChild", runningTask);
                     diagRunningIndex = runningIndex;
                     if (scroll == 0 && runningIndex > 0) {
-                        int childStart = hasOrientationApi
-                                ? (int) getChildStartMethod.invoke(handler, runningTask)
-                                : (horizontal ? runningTask.getLeft() : runningTask.getTop());
-                        int childSize = hasOrientationApi
-                                ? (int) getMeasuredSizeMethod.invoke(handler, runningTask)
-                                : (horizontal ? runningTask.getWidth() : runningTask.getHeight());
+                        int childStart = (int) getChildStartMethod.invoke(handler, runningTask);
+                        int childSize = (int) getMeasuredSizeMethod.invoke(handler, runningTask);
                         center = childStart + childSize / 2f;
                     }
                 }
@@ -799,12 +771,8 @@ public class RecentsHook {
                 View child = recentsView.getChildAt(i);
                 if (child == null || !taskViewClass.isInstance(child)) continue;
 
-                int childStart = hasOrientationApi
-                        ? (int) getChildStartMethod.invoke(handler, child)
-                        : (horizontal ? child.getLeft() : child.getTop());
-                int childSize = hasOrientationApi
-                        ? (int) getMeasuredSizeMethod.invoke(handler, child)
-                        : (horizontal ? child.getWidth() : child.getHeight());
+                int childStart = (int) getChildStartMethod.invoke(handler, child);
+                int childSize = (int) getMeasuredSizeMethod.invoke(handler, child);
                 float childCenter = childStart + childSize / 2f;
                 float distance = childCenter - center;
                 float absDistance = Math.abs(distance);
@@ -849,7 +817,7 @@ public class RecentsHook {
                     Float prevOffset = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", 0f);
                     if (prevOffset != null && prevOffset != 0f) {
-                        applyStackOffset(child, horizontal, isDismissing);
+                        XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
                     }
                     // Keep the same draw order the stacked cards use. Without a Z value this card sat at 0,
                     // so every stacked card (Z ~100) was drawn on top of the running app's card.
@@ -922,94 +890,39 @@ public class RecentsHook {
                     // we fade out the virtual pull because the manual scroll has "filled the gap".
                     float pullFade = clamp(-originalDistance / scrollUnit, 0f, 1f);
                     float effectivePull = dismissPullProgress * scrollUnit * pullFade;
-
-                    // Non-focus LEFT cards keep a FIXED stacked position, independent of the dismiss
-                    // pull. The pull (and the rank it feeds) fluctuates 0<->1 during transitions, which
-                    // made the card jump between two targets (~626 vs ~606) -> the "blink" / brief
-                    // surge to the surface on release. Using the raw originalDistance here makes the
-                    // position identical while holding and after release.
-                    if (originalDistance < -40f) {
-                        effectivePull = 0f;
-                    }
-
+                    
                     // virtualDistance should be 0 when at center
                     float virtualDistance = originalDistance + effectivePull;
                     float absVirtualDistance = Math.abs(virtualDistance);
                     
                     float peek = clamp(spacingFactor * 14f, measuredSize * 0.03f, measuredSize * 0.12f);
-
-                    // The full pull collapses virtualDistance to 0 (and rank to 0), so the card is
-                    // computed as if it sat on the centre: full scale, stuck to the focused card
-                    // ("rata" / both cards' tops aligned). For every non-focus LEFT card, keep the
-                    // virtual pull from dragging it closer than ~60% of its original distance, so it
-                    // stays a visibly smaller, stacked layer. Rank is left as-is: forcing it to a
-                    // minimum here reordered many cards and locked the 2nd layer behind the 3rd.
-                    if (originalDistance < -40f) {
-                        float vLimit = originalDistance * 0.6f;
-                        if (virtualDistance > vLimit) {
-                            virtualDistance = vLimit;
-                            absVirtualDistance = Math.abs(virtualDistance);
-                        }
-                    }
-
-                    // effectiveRank fluctuates 0<->1 during transitions (nearby cards are animating,
-                    // so their weight drops below 0.01), which makes this card jump between two target
-                    // positions (~655 vs ~626) — visible as blink/instability. For POSITION only use a
-                    // floor of rank 1 on non-focus cards so the target stays stable. Z-order still uses
-                    // the real rank (targetZ = 100 - effectiveRank), so layer order stays correct.
-                    float rankForStack = (originalDistance < -40f) ? Math.max(effectiveRank, 1f) : effectiveRank;
-                    float stackTargetStable = -rankForStack * peek;
+                    float stackTarget = -effectiveRank * peek;
 
                     float baseK = spacingFactor * 55f;
                     float exponent = 1.20f + (tightnessFactor * 0.80f) + (effectiveRank * 0.05f);
                     float hill = (float) (1.0 / (1.0 + Math.pow(absVirtualDistance / baseK, exponent)));
 
-                    // Depth floor: the hill function collapses the stack offset to ~0 for cards
-                    // near the focus (hill ~ 1), which makes the second card sit exactly on top of
-                    // the focused one ("jadi satu"). Keep at least a small fraction of the rank-based
-                    // stack offset for every non-focus card so the layers stay visibly separated.
-                    // (Focus card has effectiveRank == 0, so stackTarget == 0 and this never moves it.)
-                    float depthMix = Math.max(1f - hill, 0.22f);
-                    float finalTargetPos = (virtualDistance * hill) + (stackTargetStable * depthMix);
+                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * (1f - hill));
                     float extraTranslation = finalTargetPos - originalDistance;
-
-                    // The full pull can collapse virtualDistance to 0 while rank also drops to 0,
-                    // which would send finalTargetPos to 0 -> the second card lands exactly on top of
-                    // the focused card ("menyatu"). Clamp so a non-focus LEFT card can never be pulled
-                    // across the centre: keep it at least <peek> px away from it.
-                    if (originalDistance < -40f) {
-                        float maxPullIn = -originalDistance - peek;
-                        extraTranslation = Math.min(extraTranslation, maxPullIn);
-                    }
                     
                     // Use higher responsiveness for manual scrolling.
                     // Only use smooth lerp when the card is being pulled purely by a dismissal.
                     Float currentOffsetObj = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     float currentOffset = currentOffsetObj != null ? currentOffsetObj : 0f;
                     
-                    // Constant smoothing (no flip-flop 0.72<->1.0). The old conditional factor made the
-                    // offset lag far behind while holding (off~461 vs target~606) and then jump ~164px
-                    // the moment lerp snapped to 1.0 on release -> that jump is the perceived "blink"
-                    // (card briefly surging forward). A constant fast factor keeps the offset close to
-                    // target at all times, so release never triggers a large one-frame jump, and
-                    // scrolling moves smoothly.
-                    float lerpFactor = 0.9f; // responsive enough to track, smooth enough not to jitter
+                    // If the user is actively scrolling (originalDistance changing) or near center, 
+                    // increase responsiveness to 1.0.
+                    // We also blend the lerp factor to avoid sudden jumps.
+                    float targetLerp = (dismissPullProgress > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
+                    float lerpFactor = currentOffsetObj != null ? 
+                            (0.85f * targetLerp + 0.15f * 1.0f) : targetLerp; // Slight bias towards stability
+                    
                     float smoothedOffset = currentOffset + (extraTranslation - currentOffset) * lerpFactor;
-
-                    if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
-                        lastCardDiagLogUptime = nowUptime;
-                        XposedBridge.log("StackRecentAOSP[diag-card]: LEFT i=" + i
-                                + " origDist=" + String.format(java.util.Locale.US, "%.1f", originalDistance)
-                                + " rank=" + String.format(java.util.Locale.US, "%.2f", effectiveRank)
-                                + " virt=" + String.format(java.util.Locale.US, "%.1f", virtualDistance)
-                                + " extra=" + String.format(java.util.Locale.US, "%.1f", extraTranslation)
-                                + " off=" + String.format(java.util.Locale.US, "%.1f", smoothedOffset));
-                    }
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     
                     // Manually trigger property update on the carousel axis
-                    applyStackOffset(child, horizontal, isDismissing);
+                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
                     
                     // Visual effects (Scale/Alpha) also use virtual distance for perfect synchronization
                     float visualProgress = Math.min(1.0f, absVirtualDistance / (measuredSize * 2.5f));
@@ -1070,43 +983,22 @@ public class RecentsHook {
                         float restoreFade = Math.min(1.0f,
                                 absVirtualDistance / (measuredSize * QUICK_SWITCH_RESTORE_RANGE));
                         extraTranslation = (restore * restoreFade) + effectivePull;
-                        // Depth floor (mirror of the non-quick-switch branch): restoreFade collapses to ~0
-                        // for cards near the focus, so the second card sits exactly on top of the focused one
-                        // during a quick-switch hold. Keep a minimum separation for every non-focus card.
-                        if (absVirtualDistance > 40f) {
-                            float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
-                            extraTranslation = Math.min(extraTranslation, -peekRightMax * 0.22f);
-                        }
                     } else {
                         // Increase negative translation to pull right cards closer
                         float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
-                        // Depth floor (mirror of the left side): decayFactor collapses to ~0 near the
-                        // focus, so the neighbouring card sits on top of the focused one. Keep a minimum
-                        // so layers stay visibly separated. Only for non-focus cards (far enough from centre).
-                        float decayBase = Math.min(1.0f, absVirtualDistance / (measuredSize * 0.8f));
-                        float decayFactor = absVirtualDistance > 40f ? Math.max(decayBase, 0.22f) : decayBase;
+                        float decayFactor = Math.min(1.0f, absVirtualDistance / (measuredSize * 0.8f));
                         extraTranslation = (-peekRightMax * decayFactor) + effectivePull;
                     }
                     
                     Float currentOffsetRightObj = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     float currentOffsetRight = currentOffsetRightObj != null ? currentOffsetRightObj : 0f;
                     
-                    // Constant smoothing for the right neighbours too: the conditional targetLerp
-                    // flip-flopped 0.72<->1.0, making scrolling stutter. Constant 0.88 keeps motion smooth.
-                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * 0.88f;
-
-                    if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
-                        lastCardDiagLogUptime = nowUptime;
-                        XposedBridge.log("StackRecentAOSP[diag-card]: RIGHT i=" + i
-                                + " origDist=" + String.format(java.util.Locale.US, "%.1f", originalDistance)
-                                + " virt=" + String.format(java.util.Locale.US, "%.1f", virtualDistance)
-                                + " quick=" + quickSwitch
-                                + " extra=" + String.format(java.util.Locale.US, "%.1f", extraTranslation)
-                                + " off=" + String.format(java.util.Locale.US, "%.1f", smoothedOffset));
-                    }
+                    // Higher responsiveness for dismiss animations
+                    float targetLerp = (dismissPullProgressRight > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
+                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
-                    applyStackOffset(child, horizontal, isDismissing);
+                    XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
 
                     if (quickSwitch) {
                         // Stock quick-switch look: no depth scaling or fading on the incoming card.
@@ -1287,65 +1179,6 @@ public class RecentsHook {
             }
         }
     }
-
-    private void applyStackOffset(View child, boolean horizontal, boolean isDismissing) {
-    // Try Launcher's own applyTranslationX/Y first (modern launchers: the method
-    // reads our apple_stack_offset via the getOffsetAdjustment hook). On Android 10
-    // the TaskView has no such methods, so fall back to applying the offset directly.
-    try {
-        XposedHelpers.callMethod(child, horizontal ? "applyTranslationX" : "applyTranslationY");
-        return;
-    } catch (Throwable ignored) {
-        // Method absent (e.g. Android 10 NexusLauncher) -> apply directly.
-    }
-    Float off = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
-    float o = off == null ? 0f : off;
-    if (horizontal) {
-        // A13-style: while Launcher is animating the settle, hand it the offset through
-        // the internal translation fields it owns instead of fighting it with a direct
-        // setTranslationX() write (dual-writer is what flashes the settling card).
-        if (isDismissing) {
-            setInternalTranslationForStack(child, o, true);
-        } else {
-            child.setTranslationX(o);
-        }
-    } else {
-        if (isDismissing) {
-            setInternalTranslationForStack(child, o, false);
-        } else {
-            child.setTranslationY(o);
-        }
-    }
-}
-
-private void setInternalTranslationForStack(View child, float translation, boolean horizontal) {
-    // Mirror how Android 13's engine lets the module composite into Launcher's own
-    // transform: write the field Launcher reads; do not stomp the property directly.
-    try {
-        if (horizontal) {
-            if (persistentTranslationXField != null) {
-                persistentTranslationXField.setFloat(child, translation);
-                return;
-            }
-            if (nonGridTranslationXField != null) {
-                nonGridTranslationXField.setFloat(child, translation);
-                return;
-            }
-        } else {
-            if (dismissTranslationYField != null) {
-                dismissTranslationYField.setFloat(child, translation);
-                return;
-            }
-        }
-    } catch (Throwable ignored) {
-    }
-    // No internal field available: fall back to the property (same as baseline).
-    if (horizontal) {
-        child.setTranslationX(translation);
-    } else {
-        child.setTranslationY(translation);
-    }
-}
 
     private void applyTranslation(View child, float translation) {
         try {
