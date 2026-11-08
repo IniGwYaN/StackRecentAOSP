@@ -961,7 +961,10 @@ public class RecentsHook {
                     float stackTargetStable = -rankForStack * peek;
 
                     float baseK = spacingFactor * 55f;
-                    float exponent = 1.20f + (tightnessFactor * 0.80f) + (effectiveRank * 0.05f);
+                    // Use the floored rank everywhere visual on the left so a transient 0<->1 rank
+                    // fluctuation never changes the exponent, scale, alpha or Z (which made the 2nd
+                    // card briefly surge to the surface / jitter while scrolling).
+                    float exponent = 1.20f + (tightnessFactor * 0.80f) + (rankForStack * 0.05f);
                     float hill = (float) (1.0 / (1.0 + Math.pow(absVirtualDistance / baseK, exponent)));
 
                     // Depth floor: the hill function collapses the stack offset to ~0 for cards
@@ -1018,8 +1021,8 @@ public class RecentsHook {
                     child.setScaleY(scale);
                     child.setAlpha(1.0f - (visualProgress * 0.2f));
 
-                    XposedHelpers.setAdditionalInstanceField(child, "apple_child_index", effectiveRank);
-                    float targetZ = 100f - effectiveRank;
+                    XposedHelpers.setAdditionalInstanceField(child, "apple_child_index", rankForStack);
+                    float targetZ = 100f - rankForStack;
                     XposedHelpers.setAdditionalInstanceField(child, "apple_target_z", targetZ);
                     child.setTranslationZ(targetZ);
                 } else {
