@@ -698,11 +698,13 @@ public class RecentsHook {
                 hasOrientationApi = handler != null;
             }
             // The Android 10 Pixel Launcher supplied with this project has no
-            // PagedOrientationHandler; in that case use the ordinary View geometry.
+            // PagedOrientationHandler. On that launcher the Recents carousel always scrolls
+            // horizontally (left-right) even in landscape — so the primary axis is always X.
+            // Inferring the axis from width<height would mark landscape as vertical, which
+            // collapses the whole stack (all distances ~0, cards piled/clipped).
             final boolean horizontal = hasOrientationApi
                     ? isPrimaryAxisHorizontalForHandler(handler)
-                    : (recentsView.getWidth() <= 0 || recentsView.getHeight() <= 0
-                        || recentsView.getWidth() < recentsView.getHeight());
+                    : true;
 
             // Reload prefs to get dynamic changes
             prefs.reload();
