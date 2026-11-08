@@ -922,7 +922,16 @@ public class RecentsHook {
                     // we fade out the virtual pull because the manual scroll has "filled the gap".
                     float pullFade = clamp(-originalDistance / scrollUnit, 0f, 1f);
                     float effectivePull = dismissPullProgress * scrollUnit * pullFade;
-                    
+
+                    // Non-focus LEFT cards keep a FIXED stacked position, independent of the dismiss
+                    // pull. The pull (and the rank it feeds) fluctuates 0<->1 during transitions, which
+                    // made the card jump between two targets (~626 vs ~606) -> the "blink" / brief
+                    // surge to the surface on release. Using the raw originalDistance here makes the
+                    // position identical while holding and after release.
+                    if (originalDistance < -40f) {
+                        effectivePull = 0f;
+                    }
+
                     // virtualDistance should be 0 when at center
                     float virtualDistance = originalDistance + effectivePull;
                     float absVirtualDistance = Math.abs(virtualDistance);
