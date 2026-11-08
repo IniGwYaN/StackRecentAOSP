@@ -70,7 +70,7 @@ public class NavBarHook {
                         if (category == null) return;
 
                         XposedHelpers.callMethod(category, "setKey", KEY_BUILD_SETTINGS_CATEGORY);
-                        XposedHelpers.callMethod(category, "setTitle", "Setelan Modul YAN");
+                        XposedHelpers.callMethod(category, "setTitle", "StackRecentAOSP by YAN");
                         XposedHelpers.callMethod(screen, "addPreference", category);
 
                         SharedPreferences sp = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE);
