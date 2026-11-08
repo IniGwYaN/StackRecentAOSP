@@ -4,9 +4,9 @@
 
 **iOS-style stacked cards for the Recent Apps screen on AOSP Launcher3 and Pixel Launcher.**
 
-[![Android](https://img.shields.io/badge/Android-12%2B-3DDC84?logo=android&logoColor=white)](#compatibility)
+[![Android](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](#compatibility)
 [![LSPosed](https://img.shields.io/badge/LSPosed-module-5C6BC0)](https://github.com/LSPosed/LSPosed)
-[![Version](https://img.shields.io/badge/version-1.0.0-informational)](../../releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-informational)](../../releases)
 
 <img src="Preview/preview.gif" alt="StackRecentAOSP preview" width="280">
 
@@ -35,8 +35,8 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 | | |
 |---|---|
 | **Package ID** | `com.yan.stackrecentaosp` |
-| **Version** | 1.0.0 |
-| **Minimum Android** | Android 12 (API 31) |
+| **Version** | 1.1.0 |
+| **Minimum Android** | Android 10 (API 29) |
 | **Framework** | LSPosed / Xposed API |
 | **Developer** | **YAN** |
 
