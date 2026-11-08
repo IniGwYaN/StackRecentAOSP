@@ -969,7 +969,9 @@ public class RecentsHook {
                     // the focused one ("jadi satu"). Keep at least a small fraction of the rank-based
                     // stack offset for every non-focus card so the layers stay visibly separated.
                     // (Focus card has effectiveRank == 0, so stackTarget == 0 and this never moves it.)
-                    float depthMix = Math.max(1f - hill, 0.22f);
+                    // 0.18 floor keeps non-focus layers packed close together so the stack reads as an
+                    // orderly, evenly-spaced cascade instead of spreading wide and looking messy.
+                    float depthMix = Math.max(1f - hill, 0.18f);
                     float finalTargetPos = (virtualDistance * hill) + (stackTargetStable * depthMix);
                     float extraTranslation = finalTargetPos - originalDistance;
 
@@ -1013,11 +1015,12 @@ public class RecentsHook {
                     // Visual effects (Scale/Alpha) also use virtual distance for perfect synchronization
                     float visualProgress = Math.min(1.0f, absVirtualDistance / (measuredSize * 2.5f));
                     // Stronger depth falloff so far cards shrink more (was min 0.80, which kept the
-                    // backmost layer too large and made the stack look crammed/untidy).
-                    float scale = 1.0f - (visualProgress * 0.35f);
+                    // backmost layer too large and made the stack look crammed/untidy). 0.28 keeps
+                    // a clear cascade without making the far cards too tiny to look orderly.
+                    float scale = 1.0f - (visualProgress * 0.28f);
                     child.setScaleX(scale);
                     child.setScaleY(scale);
-                    child.setAlpha(1.0f - (visualProgress * 0.30f));
+                    child.setAlpha(1.0f - (visualProgress * 0.26f));
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_child_index", effectiveRank);
                     float targetZ = 100f - effectiveRank;
