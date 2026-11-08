@@ -1300,22 +1300,12 @@ public class RecentsHook {
     }
     Float off = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
     float o = off == null ? 0f : off;
-    if (horizontal) {
-        // A13-style: while Launcher is animating the settle, hand it the offset through
-        // the internal translation fields it owns instead of fighting it with a direct
-        // setTranslationX() write (dual-writer is what flashes the settling card).
-        if (isDismissing) {
-            setInternalTranslationForStack(child, o, true);
-        } else {
-            child.setTranslationX(o);
-        }
-    } else {
-        if (isDismissing) {
-            setInternalTranslationForStack(child, o, false);
-        } else {
-            child.setTranslationY(o);
-        }
-    }
+    // Route through Launcher's own internal translation fields (single-writer, same as
+    // Android 13) so A10 animates smoothly instead of fighting the host with a direct
+    // setTranslationX() write every frame (dual-writer is what flashes/stutters).
+    // setInternalTranslationForStack falls back to the View property when no internal
+    // field exists, so the module keeps working on older launchers.
+    setInternalTranslationForStack(child, o, horizontal);
 }
 
 private void setInternalTranslationForStack(View child, float translation, boolean horizontal) {
