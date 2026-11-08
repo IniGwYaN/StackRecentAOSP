@@ -943,7 +943,13 @@ public class RecentsHook {
                         }
                     }
 
-                    float stackTarget = -effectiveRank * peek;
+                    // effectiveRank fluctuates 0<->1 during transitions (nearby cards are animating,
+                    // so their weight drops below 0.01), which makes this card jump between two target
+                    // positions (~655 vs ~626) — visible as blink/instability. For POSITION only use a
+                    // floor of rank 1 on non-focus cards so the target stays stable. Z-order still uses
+                    // the real rank (targetZ = 100 - effectiveRank), so layer order stays correct.
+                    float rankForStack = (originalDistance < -40f) ? Math.max(effectiveRank, 1f) : effectiveRank;
+                    float stackTargetStable = -rankForStack * peek;
 
                     float baseK = spacingFactor * 55f;
                     float exponent = 1.20f + (tightnessFactor * 0.80f) + (effectiveRank * 0.05f);
@@ -955,7 +961,7 @@ public class RecentsHook {
                     // stack offset for every non-focus card so the layers stay visibly separated.
                     // (Focus card has effectiveRank == 0, so stackTarget == 0 and this never moves it.)
                     float depthMix = Math.max(1f - hill, 0.22f);
-                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * depthMix);
+                    float finalTargetPos = (virtualDistance * hill) + (stackTargetStable * depthMix);
                     float extraTranslation = finalTargetPos - originalDistance;
 
                     // The full pull can collapse virtualDistance to 0 while rank also drops to 0,
