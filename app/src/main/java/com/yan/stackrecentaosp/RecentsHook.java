@@ -1012,10 +1012,12 @@ public class RecentsHook {
                     
                     // Visual effects (Scale/Alpha) also use virtual distance for perfect synchronization
                     float visualProgress = Math.min(1.0f, absVirtualDistance / (measuredSize * 2.5f));
-                    float scale = 1.0f - (visualProgress * 0.20f);
+                    // Stronger depth falloff so far cards shrink more (was min 0.80, which kept the
+                    // backmost layer too large and made the stack look crammed/untidy).
+                    float scale = 1.0f - (visualProgress * 0.35f);
                     child.setScaleX(scale);
                     child.setScaleY(scale);
-                    child.setAlpha(1.0f - (visualProgress * 0.2f));
+                    child.setAlpha(1.0f - (visualProgress * 0.30f));
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_child_index", effectiveRank);
                     float targetZ = 100f - effectiveRank;
