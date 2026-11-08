@@ -928,6 +928,21 @@ public class RecentsHook {
                     float absVirtualDistance = Math.abs(virtualDistance);
                     
                     float peek = clamp(spacingFactor * 14f, measuredSize * 0.03f, measuredSize * 0.12f);
+
+                    // The full pull collapses virtualDistance to 0 and rank to 0, so the card is
+                    // computed as if it sat on the centre: full scale, stuck to the focused card
+                    // ("rata" / both cards' tops aligned). For every non-focus LEFT card, stabilise
+                    // the rank at min 1 and keep the virtual pull from dragging it closer than ~60%
+                    // of its original distance, so it stays a visibly smaller, stacked layer.
+                    if (originalDistance < -40f) {
+                        effectiveRank = Math.max(effectiveRank, 1f);
+                        float vLimit = originalDistance * 0.6f;
+                        if (virtualDistance > vLimit) {
+                            virtualDistance = vLimit;
+                            absVirtualDistance = Math.abs(virtualDistance);
+                        }
+                    }
+
                     float stackTarget = -effectiveRank * peek;
 
                     float baseK = spacingFactor * 55f;
