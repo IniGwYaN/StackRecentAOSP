@@ -933,7 +933,13 @@ public class RecentsHook {
                     float exponent = 1.20f + (tightnessFactor * 0.80f) + (effectiveRank * 0.05f);
                     float hill = (float) (1.0 / (1.0 + Math.pow(absVirtualDistance / baseK, exponent)));
 
-                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * (1f - hill));
+                    // Depth floor: the hill function collapses the stack offset to ~0 for cards
+                    // near the focus (hill ~ 1), which makes the second card sit exactly on top of
+                    // the focused one ("jadi satu"). Keep at least a small fraction of the rank-based
+                    // stack offset for every non-focus card so the layers stay visibly separated.
+                    // (Focus card has effectiveRank == 0, so stackTarget == 0 and this never moves it.)
+                    float depthMix = Math.max(1f - hill, 0.22f);
+                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * depthMix);
                     float extraTranslation = finalTargetPos - originalDistance;
                     
                     // Use higher responsiveness for manual scrolling.
@@ -1017,7 +1023,11 @@ public class RecentsHook {
                     } else {
                         // Increase negative translation to pull right cards closer
                         float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
-                        float decayFactor = Math.min(1.0f, absVirtualDistance / (measuredSize * 0.8f));
+                        // Depth floor (mirror of the left side): decayFactor collapses to ~0 near the
+                        // focus, so the neighbouring card sits on top of the focused one. Keep a minimum
+                        // so layers stay visibly separated. Only for non-focus cards (far enough from centre).
+                        float decayBase = Math.min(1.0f, absVirtualDistance / (measuredSize * 0.8f));
+                        float decayFactor = absVirtualDistance > 40f ? Math.max(decayBase, 0.22f) : decayBase;
                         extraTranslation = (-peekRightMax * decayFactor) + effectivePull;
                     }
                     
