@@ -978,13 +978,13 @@ public class RecentsHook {
                     Float currentOffsetObj = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     float currentOffset = currentOffsetObj != null ? currentOffsetObj : 0f;
                     
-                    // If the user is actively scrolling (originalDistance changing) or near center, 
-                    // increase responsiveness to 1.0.
-                    // We also blend the lerp factor to avoid sudden jumps.
-                    float targetLerp = (dismissPullProgress > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
-                    float lerpFactor = currentOffsetObj != null ? 
-                            (0.85f * targetLerp + 0.15f * 1.0f) : targetLerp; // Slight bias towards stability
-                    
+                    // Constant smoothing (no flip-flop 0.72<->1.0). The old conditional factor made the
+                    // offset lag far behind while holding (off~461 vs target~606) and then jump ~164px
+                    // the moment lerp snapped to 1.0 on release -> that jump is the perceived "blink"
+                    // (card briefly surging forward). A constant fast factor keeps the offset close to
+                    // target at all times, so release never triggers a large one-frame jump, and
+                    // scrolling moves smoothly.
+                    float lerpFactor = 0.9f; // responsive enough to track, smooth enough not to jitter
                     float smoothedOffset = currentOffset + (extraTranslation - currentOffset) * lerpFactor;
 
                     if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
@@ -1082,9 +1082,9 @@ public class RecentsHook {
                     Float currentOffsetRightObj = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
                     float currentOffsetRight = currentOffsetRightObj != null ? currentOffsetRightObj : 0f;
                     
-                    // Higher responsiveness for dismiss animations
-                    float targetLerp = (dismissPullProgressRight > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
-                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
+                    // Constant smoothing for the right neighbours too: the conditional targetLerp
+                    // flip-flopped 0.72<->1.0, making scrolling stutter. Constant 0.88 keeps motion smooth.
+                    float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * 0.88f;
 
                     if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
                         lastCardDiagLogUptime = nowUptime;
