@@ -677,6 +677,7 @@ public class RecentsHook {
     private long lastDismissHookLogUptime;
     private long lastDiagLogUptime;
     private long lastQuickSwitchLogUptime;
+    private long lastCardDiagLogUptime;
 
     private void handleUpdateCurveProperties(XC_MethodHook.MethodHookParam param) {
         ViewGroup recentsView = (ViewGroup) param.thisObject;
@@ -956,6 +957,16 @@ public class RecentsHook {
                     
                     float smoothedOffset = currentOffset + (extraTranslation - currentOffset) * lerpFactor;
 
+                    if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
+                        lastCardDiagLogUptime = nowUptime;
+                        XposedBridge.log("StackRecentAOSP[diag-card]: LEFT i=" + i
+                                + " origDist=" + String.format(java.util.Locale.US, "%.1f", originalDistance)
+                                + " rank=" + String.format(java.util.Locale.US, "%.2f", effectiveRank)
+                                + " virt=" + String.format(java.util.Locale.US, "%.1f", virtualDistance)
+                                + " extra=" + String.format(java.util.Locale.US, "%.1f", extraTranslation)
+                                + " off=" + String.format(java.util.Locale.US, "%.1f", smoothedOffset));
+                    }
+
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     
                     // Manually trigger property update on the carousel axis
@@ -1044,6 +1055,16 @@ public class RecentsHook {
                     // Higher responsiveness for dismiss animations
                     float targetLerp = (dismissPullProgressRight > 0.01f && absVirtualDistance > 30f) ? 0.72f : 1.0f;
                     float smoothedOffset = currentOffsetRight + (extraTranslation - currentOffsetRight) * (0.4f * targetLerp + 0.6f * 1.0f);
+
+                    if (nowUptime - lastCardDiagLogUptime > DEBUG_LOG_THROTTLE_MS) {
+                        lastCardDiagLogUptime = nowUptime;
+                        XposedBridge.log("StackRecentAOSP[diag-card]: RIGHT i=" + i
+                                + " origDist=" + String.format(java.util.Locale.US, "%.1f", originalDistance)
+                                + " virt=" + String.format(java.util.Locale.US, "%.1f", virtualDistance)
+                                + " quick=" + quickSwitch
+                                + " extra=" + String.format(java.util.Locale.US, "%.1f", extraTranslation)
+                                + " off=" + String.format(java.util.Locale.US, "%.1f", smoothedOffset));
+                    }
 
                     XposedHelpers.setAdditionalInstanceField(child, "apple_stack_offset", smoothedOffset);
                     applyStackOffset(child, horizontal, isDismissing);
