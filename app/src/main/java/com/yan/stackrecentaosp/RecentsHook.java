@@ -1305,12 +1305,27 @@ public class RecentsHook {
     }
     Float off = (Float) XposedHelpers.getAdditionalInstanceField(child, "apple_stack_offset");
     float o = off == null ? 0f : off;
-    // Route through Launcher's own internal translation fields (single-writer, same as
-    // Android 13) so A10 animates smoothly instead of fighting the host with a direct
-    // setTranslationX() write every frame (dual-writer is what flashes/stutters).
-    // setInternalTranslationForStack falls back to the View property when no internal
-    // field exists, so the module keeps working on older launchers.
-    setInternalTranslationForStack(child, o, horizontal);
+    // Portrait: route through Launcher's own internal translation X field (single-writer,
+    // same as Android 13) so A10 animates smoothly instead of fighting the host with a
+    // direct setTranslationX() write every frame (dual-writer is what flashes/stutters).
+    if (horizontal) {
+        setInternalTranslationForStack(child, o, true);
+        return;
+    }
+    // Landscape (A10, no applyTranslationY method): the primary axis is Y. The dismiss
+    // translation field belongs to the dismiss animation, NOT the stack offset — writing the
+    // stack offset into it makes cards sit as if they were dismissing (huge / clipped /
+    // mis-ordered). So use dismissTranslationYField only while actually dismissing, and
+    // otherwise write the translation directly (single-writer, matching the applyTranslationY
+    // hook path). This is what kept A10 landscape normal before the single-writer change.
+    if (isDismissing && dismissTranslationYField != null) {
+        try {
+            dismissTranslationYField.setFloat(child, o);
+            return;
+        } catch (Throwable ignored) {
+        }
+    }
+    child.setTranslationY(o);
 }
 
 private void setInternalTranslationForStack(View child, float translation, boolean horizontal) {
