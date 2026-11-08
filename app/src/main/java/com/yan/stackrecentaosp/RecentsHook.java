@@ -942,6 +942,15 @@ public class RecentsHook {
                     float depthMix = Math.max(1f - hill, 0.22f);
                     float finalTargetPos = (virtualDistance * hill) + (stackTarget * depthMix);
                     float extraTranslation = finalTargetPos - originalDistance;
+
+                    // The full pull can collapse virtualDistance to 0 while rank also drops to 0,
+                    // which would send finalTargetPos to 0 -> the second card lands exactly on top of
+                    // the focused card ("menyatu"). Clamp so a non-focus LEFT card can never be pulled
+                    // across the centre: keep it at least <peek> px away from it.
+                    if (originalDistance < -40f) {
+                        float maxPullIn = -originalDistance - peek;
+                        extraTranslation = Math.min(extraTranslation, maxPullIn);
+                    }
                     
                     // Use higher responsiveness for manual scrolling.
                     // Only use smooth lerp when the card is being pulled purely by a dismissal.
