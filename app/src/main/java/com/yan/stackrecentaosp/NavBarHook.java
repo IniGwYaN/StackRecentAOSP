@@ -22,7 +22,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 /**
- * 负责在 Launcher 设置中添加导航条颜色自定义选项，并尝试修改其显示逻辑。
+ * Adds navbar handle color customization options to the Launcher settings and hooks their display logic.
  */
 public class NavBarHook {
     private static final String KEY_NAV_HANDLE_DARK_BG_COLOR = "pref_nav_handle_dark_bg_custom_color";
@@ -70,7 +70,7 @@ public class NavBarHook {
                         if (category == null) return;
 
                         XposedHelpers.callMethod(category, "setKey", KEY_BUILD_SETTINGS_CATEGORY);
-                        XposedHelpers.callMethod(category, "setTitle", "YAN 的模块设置");
+                        XposedHelpers.callMethod(category, "setTitle", "Setelan Modul YAN");
                         XposedHelpers.callMethod(screen, "addPreference", category);
 
                         SharedPreferences sp = context.getSharedPreferences(LAUNCHER_PREFS_NAME, Context.MODE_PRIVATE);
@@ -79,7 +79,7 @@ public class NavBarHook {
                         Object darkBgColorPref = createPreferenceInstance(prefClass, context);
                         if (darkBgColorPref != null) {
                             XposedHelpers.callMethod(darkBgColorPref, "setKey", KEY_NAV_HANDLE_DARK_BG_COLOR);
-                            XposedHelpers.callMethod(darkBgColorPref, "setTitle", "深色背景下小白条颜色");
+                            XposedHelpers.callMethod(darkBgColorPref, "setTitle", "Warna Batang Putih di Latar Gelap");
                             setPreferenceSelectable(darkBgColorPref, false);
                             XposedHelpers.callMethod(category, "addPreference", darkBgColorPref);
                         }
@@ -88,7 +88,7 @@ public class NavBarHook {
                         Object lightBgColorPref = createPreferenceInstance(prefClass, context);
                         if (lightBgColorPref != null) {
                             XposedHelpers.callMethod(lightBgColorPref, "setKey", KEY_NAV_HANDLE_LIGHT_BG_COLOR);
-                            XposedHelpers.callMethod(lightBgColorPref, "setTitle", "浅色背景下小白条颜色");
+                            XposedHelpers.callMethod(lightBgColorPref, "setTitle", "Warna Batang Putih di Latar Terang");
                             setPreferenceSelectable(lightBgColorPref, false);
                             XposedHelpers.callMethod(category, "addPreference", lightBgColorPref);
                         }
@@ -182,7 +182,7 @@ public class NavBarHook {
             });
 
             Button btnReset = new Button(context);
-            btnReset.setText("重置");
+            btnReset.setText("Reset");
             btnReset.setTextSize(12);
             btnReset.setAllCaps(false);
             btnReset.setPadding(0, 0, 0, 0);
