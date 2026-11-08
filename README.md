@@ -54,6 +54,11 @@ StackRecentAOSP is an LSPosed module that replaces the flat carousel of the Rece
 - **Animation bug fix** – Recent Apps animations stay smooth and the running app lines up with its card.
 - **Recent app slide fix** – sliding the navigation bar to switch between apps no longer shows another app on top of the current one.
 - **Landscape mode fix** – cards, offsets and dismiss gestures behave correctly when the layout is rotated.
+- **Stack offset single-writer** – the offset is routed through the launcher's own internal translation fields instead of writing directly, so cards no longer flash or stutter while scrolling.
+- **Stack cascade ordering** – back layers are spaced and sized evenly so the stack reads as a tidy cascade instead of spreading wide or sitting flat on the focused card.
+- **Android 10 landscape collapse fix** – on A10 the no-handler path now forces the horizontal axis, so the stack no longer collapses/squeezes when the layout is rotated.
+- **Android 10 landscape stacking fix** – in landscape the offset is written straight to translation Y instead of the dismiss field, so cards no longer sit huge/clipped/mis-ordered.
+- **Blink/jitter stabilisation** – scroll-position targets are stabilised with a responsive conditional lerp, preventing the back cards from jumping between two targets on hold/release.
 
 ## Compatibility
 
@@ -124,7 +129,7 @@ On Windows use `gradlew.bat`. The APK is written to `app/build/outputs/apk/relea
 ## Credits
 
 - Developed and maintained by **[YAN](https://github.com/IniGwYaN)**.
-- Original project inspiration and code references : [C70246247](https://github.com/C70246247).
+- Original project inspiration and code references: [C70246247](https://github.com/C70246247).
 - [Android Open Source Project](https://source.android.com/), [LSPosed](https://github.com/LSPosed/LSPosed), [AndroidX](https://github.com/androidx/androidx) and [Material Components](https://github.com/material-components/material-components-android).
 
 ---
