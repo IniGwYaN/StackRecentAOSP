@@ -1020,6 +1020,13 @@ public class RecentsHook {
                         float restoreFade = Math.min(1.0f,
                                 absVirtualDistance / (measuredSize * QUICK_SWITCH_RESTORE_RANGE));
                         extraTranslation = (restore * restoreFade) + effectivePull;
+                        // Depth floor (mirror of the non-quick-switch branch): restoreFade collapses to ~0
+                        // for cards near the focus, so the second card sits exactly on top of the focused one
+                        // during a quick-switch hold. Keep a minimum separation for every non-focus card.
+                        if (absVirtualDistance > 40f) {
+                            float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
+                            extraTranslation = Math.min(extraTranslation, -peekRightMax * 0.22f);
+                        }
                     } else {
                         // Increase negative translation to pull right cards closer
                         float peekRightMax = clamp(spacingFactor * 35f, measuredSize * 0.08f, measuredSize * 0.25f);
