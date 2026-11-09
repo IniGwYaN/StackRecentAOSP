@@ -890,14 +890,6 @@ public class RecentsHook {
                     // we fade out the virtual pull because the manual scroll has "filled the gap".
                     float pullFade = clamp(-originalDistance / scrollUnit, 0f, 1f);
                     float effectivePull = dismissPullProgress * scrollUnit * pullFade;
-
-                    // Non-focus left cards keep their own stacked position: they should not be
-                    // pulled by the focused card's enter/dismiss animation (which would make the
-                    // second layer merge into the first one). Only the focused card drives the
-                    // virtual pull.
-                    if (originalDistance < -40f) {
-                        effectivePull = 0f;
-                    }
                     
                     // virtualDistance should be 0 when at center
                     float virtualDistance = originalDistance + effectivePull;
