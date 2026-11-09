@@ -920,7 +920,14 @@ public class RecentsHook {
                     float exponent = 1.20f + (tightnessFactor * 0.80f) + (effectiveRank * 0.05f);
                     float hill = (float) (1.0 / (1.0 + Math.pow(absVirtualDistance / baseK, exponent)));
 
-                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * (1f - hill));
+                    // Depth floor: during the enter-from-app transition the hill function collapses
+                    // the stack offset to ~0 for cards near the focus (hill ~ 1), which makes the
+                    // second card sit exactly on top of the focused one ("jadi satu") and appear to
+                    // follow/drag along with it. Keep at least a small fraction of the rank-based
+                    // stack offset for every non-focus card so the layers stay visibly separated.
+                    // (Focus card has effectiveRank == 0, so stackTarget == 0 and this never moves it.)
+                    float depthMix = Math.max(1f - hill, 0.18f);
+                    float finalTargetPos = (virtualDistance * hill) + (stackTarget * depthMix);
                     float extraTranslation = finalTargetPos - originalDistance;
                     
                     // Use higher responsiveness for manual scrolling.
