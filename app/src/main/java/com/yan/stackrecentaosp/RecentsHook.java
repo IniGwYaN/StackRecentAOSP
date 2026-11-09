@@ -890,7 +890,18 @@ public class RecentsHook {
                     // we fade out the virtual pull because the manual scroll has "filled the gap".
                     float pullFade = clamp(-originalDistance / scrollUnit, 0f, 1f);
                     float effectivePull = dismissPullProgress * scrollUnit * pullFade;
-                    
+
+                    // Two distinct paths:
+                    //  - Dismiss: a neighbouring card is actually being removed, so keep the
+                    //    cascade that slides the next card into the vacated slot.
+                    //  - Enter/peek: nothing is being dismissed (dismissPullProgress ~0), so
+                    //    non-focus left cards must stay locked to their own stacked offset and
+                    //    must NOT be dragged toward the focused card.
+                    boolean realDismiss = dismissPullProgress > 0.02f;
+                    if (!realDismiss && originalDistance < -40f) {
+                        effectivePull = 0f;
+                    }
+
                     // virtualDistance should be 0 when at center
                     float virtualDistance = originalDistance + effectivePull;
                     float absVirtualDistance = Math.abs(virtualDistance);
