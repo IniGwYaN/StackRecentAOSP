@@ -681,7 +681,11 @@ public class RecentsHook {
         try {
             if (getPagedOrientationHandlerMethod == null) return;
             Object handler = getPagedOrientationHandlerMethod.invoke(recentsView);
-            if (handler == null) return;
+            // The Android 10 Pixel Launcher ships without a PagedOrientationHandler. On it
+            // the Recents carousel always scrolls horizontally (left-right) even in landscape,
+            // so a missing handler means the primary axis is X and we fall back to plain View
+            // geometry below.
+            final boolean hasHandler = handler != null;
             final boolean horizontal = isPrimaryAxisHorizontalForHandler(handler);
 
             // Reload prefs to get dynamic changes
@@ -694,8 +698,12 @@ public class RecentsHook {
                 lastTightnessFactor = tightnessFactor;
             }
 
-            int scroll = (int) getPrimaryScrollMethod.invoke(handler, recentsView);
-            int measuredSize = (int) getMeasuredSizeMethod.invoke(handler, recentsView);
+            int scroll = hasHandler
+                    ? (int) getPrimaryScrollMethod.invoke(handler, recentsView)
+                    : recentsView.getScrollX();
+            int measuredSize = hasHandler
+                    ? (int) getMeasuredSizeMethod.invoke(handler, recentsView)
+                    : recentsView.getWidth();
             
             if (measuredSize <= 0) return; // Avoid invalid calculations on first frame
 
@@ -713,8 +721,12 @@ public class RecentsHook {
                     int runningIndex = (int) XposedHelpers.callMethod(recentsView, "indexOfChild", runningTask);
                     diagRunningIndex = runningIndex;
                     if (scroll == 0 && runningIndex > 0) {
-                        int childStart = (int) getChildStartMethod.invoke(handler, runningTask);
-                        int childSize = (int) getMeasuredSizeMethod.invoke(handler, runningTask);
+                        int childStart = hasHandler
+                                ? (int) getChildStartMethod.invoke(handler, runningTask)
+                                : runningTask.getLeft();
+                        int childSize = hasHandler
+                                ? (int) getMeasuredSizeMethod.invoke(handler, runningTask)
+                                : runningTask.getWidth();
                         center = childStart + childSize / 2f;
                     }
                 }
@@ -771,8 +783,12 @@ public class RecentsHook {
                 View child = recentsView.getChildAt(i);
                 if (child == null || !taskViewClass.isInstance(child)) continue;
 
-                int childStart = (int) getChildStartMethod.invoke(handler, child);
-                int childSize = (int) getMeasuredSizeMethod.invoke(handler, child);
+                int childStart = hasHandler
+                        ? (int) getChildStartMethod.invoke(handler, child)
+                        : child.getLeft();
+                int childSize = hasHandler
+                        ? (int) getMeasuredSizeMethod.invoke(handler, child)
+                        : child.getWidth();
                 float childCenter = childStart + childSize / 2f;
                 float distance = childCenter - center;
                 float absDistance = Math.abs(distance);
